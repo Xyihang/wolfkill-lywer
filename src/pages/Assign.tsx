@@ -167,7 +167,7 @@ export const Assign: React.FC = () => {
               <div className="space-y-3 text-sm text-gray-300">
                 <div className="flex items-start gap-2">
                   <div className="text-purple-400">1.</div>
-                  <div>将设备传递给 {currentPlayer?.name}</div>
+                  <div>把设备交给 {currentPlayer?.name}</div>
                 </div>
                 
                 <div className="flex items-start gap-2">

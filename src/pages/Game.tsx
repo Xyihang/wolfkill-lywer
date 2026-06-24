@@ -165,28 +165,32 @@ export const Game: React.FC = () => {
     return () => {};
   }, [phase, round, nightActionPhase, nightPlayerIndex, showHandoff, showWaiting, showRoleReveal, showActionUI, showNoActionUI, showWerewolfVoteResult, showDeathAnnouncement, alivePlayers.length, currentPlayer, speak]);
 
-  // 处理传递确认 - 添加随机等待时间（5-15秒）防止通过时间推断角色
+  // 处理传递确认 - 固定等待2秒
   const handleHandoffConfirm = () => {
     setShowHandoff(false);
-    
-    // 生成随机等待时间（5-15秒）
-    const randomTime = Math.floor(Math.random() * 11) + 5; // 5-15秒
-    setWaitingTime(randomTime);
+    setWaitingTime(2);
     setWaitingElapsed(0);
     setShowWaiting(true);
   };
 
-  // 等待倒计时 effect
+  // 等待倒计时 effect - 等待结束后判断是否需要行动
   useEffect(() => {
     if (!showWaiting) return;
 
     const intervalId = window.setInterval(() => {
       setWaitingElapsed(prev => {
         if (prev + 1 >= waitingTime) {
-          // 等待结束，显示角色确认
           clearInterval(intervalId);
           setShowWaiting(false);
-          setShowRoleReveal(true);
+          
+          // 判断是否是当前行动阶段的角色
+          if (currentPlayer && isCurrentPhaseRole(currentPlayer, nightActionPhase)) {
+            // 是当前行动阶段的角色，显示角色确认
+            setShowRoleReveal(true);
+          } else {
+            // 不是当前行动阶段的角色，直接显示"不到你行动"
+            setShowNoActionUI(true);
+          }
           return prev;
         }
         return prev + 1;
@@ -194,7 +198,18 @@ export const Game: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [showWaiting, waitingTime]);
+  }, [showWaiting, waitingTime, currentPlayer, nightActionPhase]);
+
+  // "不到你行动"界面自动跳过（等待1.5秒后自动进入下一个玩家）
+  useEffect(() => {
+    if (!showNoActionUI) return;
+
+    const timeoutId = window.setTimeout(() => {
+      handlePlayerComplete();
+    }, 1500);
+
+    return () => clearTimeout(timeoutId);
+  }, [showNoActionUI]);
 
   // 处理角色确认
   const handleRoleConfirm = () => {
@@ -246,8 +261,7 @@ export const Game: React.FC = () => {
     setShowActionUI(false);
     triggeredPhaseRef.current = '';
 
-    // 播报狼人闭眼
-    await speak(SPEECH_MESSAGES.WEREWOLF_SLEEP);
+    // 不播报角色相关语音，避免暴露当前阶段
 
     // 进入下一个玩家
     if (nightPlayerIndex < alivePlayers.length - 1) {
@@ -282,7 +296,7 @@ export const Game: React.FC = () => {
 
   // 处理预言家确认结果
   const handleSeerConfirm = async () => {
-    await speak(SPEECH_MESSAGES.SEER_SLEEP);
+    // 不播报角色相关语音，避免暴露当前阶段
     handlePlayerComplete();
   };
 
@@ -296,7 +310,7 @@ export const Game: React.FC = () => {
       useWitchPoison(selectedTarget);
     }
 
-    await speak(SPEECH_MESSAGES.WITCH_SLEEP);
+    // 不播报角色相关语音，避免暴露当前阶段
     handlePlayerComplete();
   };
 
@@ -436,7 +450,7 @@ export const Game: React.FC = () => {
           >
             <div className="text-center max-w-sm">
               <Moon className="w-12 h-12 text-purple-400 mb-6 mx-auto" />
-              <div className="text-xl text-gray-100 mb-4">请将设备传递给</div>
+              <div className="text-xl text-gray-100 mb-4">请把设备交给</div>
               <div className="text-3xl font-bold text-purple-400 mb-8">{currentPlayer.name}</div>
               <Button variant="primary" size="lg" onClick={handleHandoffConfirm} className="w-full">我已收到设备</Button>
               <div className="mt-4 text-xs text-gray-500">请确保其他玩家无法看到屏幕内容</div>
@@ -541,17 +555,15 @@ export const Game: React.FC = () => {
           </motion.div>
         )}
 
-        {/* 无行动提示界面 */}
+        {/* 无行动提示界面 - 自动跳过 */}
         {showNoActionUI && currentPlayer && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto">
             <Card variant="bordered" className="mb-6">
               <div className="text-center py-8">
                 <Moon className="w-12 h-12 text-gray-400 mb-4 mx-auto" />
                 <div className="text-lg text-gray-100 mb-2">{currentPlayer.name}</div>
-                <div className="text-sm text-gray-400 mb-6">不到你行动，请闭眼等待</div>
-                <Button variant="primary" onClick={handlePlayerComplete} className="w-full">
-                  我已知晓，继续
-                </Button>
+                <div className="text-sm text-gray-400 mb-4">不到你行动，请闭眼等待</div>
+                <div className="text-xs text-gray-500">自动继续...</div>
               </div>
             </Card>
           </motion.div>
@@ -997,7 +1009,7 @@ const DayPhase: React.FC<{
               >
                 <div className="text-center max-w-sm">
                   <Target className="w-12 h-12 text-yellow-400 mb-6 mx-auto" />
-                  <div className="text-xl text-gray-100 mb-4">请将设备传递给</div>
+                  <div className="text-xl text-gray-100 mb-4">请把设备交给</div>
                   <div className="text-3xl font-bold text-yellow-400 mb-2">{votingPlayers[currentVoterIndex].name}</div>
                   <div className="text-sm text-gray-400 mb-8">第 {currentVoterIndex + 1} 位投票者 / 共 {votingPlayers.length} 位</div>
                   <Button variant="primary" size="lg" onClick={() => setShowVoteHandoff(false)} className="w-full">我已收到设备，开始投票</Button>

@@ -5,7 +5,7 @@ export const SPEECH_MESSAGES = {
   
   // 角色分配
   ASSIGN_START: '现在开始分配角色，请各位玩家依次查看自己的身份。',
-  ASSIGN_PLAYER: (name: string) => `请将设备传递给${name}`,
+  ASSIGN_PLAYER: (name: string) => `请把设备交给${name}`,
   ASSIGN_CONFIRM: '请确认你是设备持有者，点击查看身份。',
   ASSIGN_COMPLETE: '角色分配完成，游戏即将开始。',
   
@@ -48,7 +48,7 @@ export const SPEECH_MESSAGES = {
   GAME_END_VILLAGER_WIN: '游戏结束，好人阵营获胜！',
   
   // 设备传递
-  HANDOFF: (name: string) => `请将设备传递给${name}`,
+  HANDOFF: (name: string) => `请把设备交给${name}`,
   HANDOFF_CONFIRM: '我已收到设备',
   
   // 计时器

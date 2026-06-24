@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Play, BookOpen, Settings, RotateCcw, Users, Shield, Skull, Check } from 'lucide-react';
+import { Play, BookOpen, Settings, RotateCcw, Users, Shield, Skull, Check, Wifi } from 'lucide-react';
 import { Button } from '../components/common/Button';
 import { Card } from '../components/common/Card';
 import { RoleCard, RoleDetailCard } from '../components/role/RoleCard';
@@ -66,12 +66,22 @@ export const Home: React.FC = () => {
               className="flex items-center gap-2"
             >
               <Play className="w-5 h-5" />
-              开始新游戏
+              开始新游戏（单人）
+            </Button>
+            
+            <Button
+              variant="secondary"
+              size="lg"
+              onClick={() => navigate('/multiplayer/lobby')}
+              className="flex items-center gap-2"
+            >
+              <Wifi className="w-5 h-5" />
+              多人联机游戏
             </Button>
             
             {savedGame && (
               <Button
-                variant="secondary"
+                variant="ghost"
                 size="lg"
                 onClick={handleContinueGame}
                 className="flex items-center gap-2"
