@@ -164,16 +164,24 @@ export const Game: React.FC = () => {
     return () => {};
   }, [phase, round, nightActionPhase, nightPlayerIndex, showHandoff, showWaiting, showRoleReveal, showActionUI, showNoActionUI, showDeathAnnouncement, alivePlayers.length, currentPlayer, speak]);
 
-  // 处理传递确认 - 随机等待1-4秒
+  // 处理传递确认 - 如果当前玩家应该操作则直接显示身份，否则随机等待
   const handleHandoffConfirm = () => {
     setShowHandoff(false);
-    const randomTime = Math.floor(Math.random() * 4) + 1; // 1-4秒
-    setWaitingTime(randomTime);
-    setWaitingElapsed(0);
-    setShowWaiting(true);
+
+    // 判断是否是当前行动阶段的角色
+    if (currentPlayer && isCurrentPhaseRole(currentPlayer, nightActionPhase)) {
+      // 是当前行动阶段的角色，直接显示角色确认（无等待）
+      setShowRoleReveal(true);
+    } else {
+      // 不是当前行动阶段的角色，随机等待1-4秒（防时间推断）
+      const randomTime = Math.floor(Math.random() * 4) + 1;
+      setWaitingTime(randomTime);
+      setWaitingElapsed(0);
+      setShowWaiting(true);
+    }
   };
 
-  // 等待倒计时 effect - 等待结束后判断是否需要行动
+  // 等待倒计时 effect - 等待结束后显示"不到你行动"（只有不需要行动的玩家才会进入等待）
   useEffect(() => {
     if (!showWaiting) return;
 
@@ -182,15 +190,8 @@ export const Game: React.FC = () => {
         if (prev + 1 >= waitingTime) {
           clearInterval(intervalId);
           setShowWaiting(false);
-          
-          // 判断是否是当前行动阶段的角色
-          if (currentPlayer && isCurrentPhaseRole(currentPlayer, nightActionPhase)) {
-            // 是当前行动阶段的角色，显示角色确认
-            setShowRoleReveal(true);
-          } else {
-            // 不是当前行动阶段的角色，直接显示"不到你行动"
-            setShowNoActionUI(true);
-          }
+          // 等待结束，显示"不到你行动"
+          setShowNoActionUI(true);
           return prev;
         }
         return prev + 1;
@@ -198,7 +199,7 @@ export const Game: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [showWaiting, waitingTime, currentPlayer, nightActionPhase]);
+  }, [showWaiting, waitingTime]);
 
   // "不到你行动"界面自动跳过（等待1.5秒后自动进入下一个玩家）
   useEffect(() => {
@@ -280,7 +281,7 @@ export const Game: React.FC = () => {
 
     const isWerewolf = ROLES[target.role].camp === 'werewolf';
     setSeerResult({ name: target.name, isWerewolf });
-    await speak(SPEECH_MESSAGES.SEER_RESULT(isWerewolf));
+    // 不语音播报好人坏人，避免暴露信息
 
     // 记录行动
     executeNightAction({
