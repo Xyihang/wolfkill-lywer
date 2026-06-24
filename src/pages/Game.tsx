@@ -426,15 +426,15 @@ export const Game: React.FC = () => {
 
   // 结束夜晚阶段
   const finishNightPhase = () => {
-    // 重置夜晚状态
+    // 先调用 store 的 endNightPhase（设置 phase: 'day'）
+    endNightPhase();
+
+    // 然后重置本地状态（不影响已切换到白天的 phase）
     setNightPlayerIndex(0);
     setNightActionPhase('werewolf');
     setWerewolfVotes({});
     setWerewolfKillTarget(null);
     triggeredPhaseRef.current = '';
-
-    // 调用 store 的 endNightPhase
-    endNightPhase();
   };
 
   // ===================== RENDER =====================
