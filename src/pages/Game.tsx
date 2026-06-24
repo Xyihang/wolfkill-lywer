@@ -39,7 +39,6 @@ export const Game: React.FC = () => {
   // 狼人投票状态
   const [werewolfVotes, setWerewolfVotes] = useState<Record<string, string>>({}); // 狼人投票记录
   const [werewolfKillTarget, setWerewolfKillTarget] = useState<string | null>(null); // 狼人最终击杀目标
-  const [showWerewolfVoteResult, setShowWerewolfVoteResult] = useState(false); // 显示投票结果
   const [showDeathAnnouncement, setShowDeathAnnouncement] = useState(false); // 显示死亡公布
   const [killedPlayerName, setKilledPlayerName] = useState<string | null>(null); // 被杀玩家名字
 
@@ -141,7 +140,7 @@ export const Game: React.FC = () => {
     if (phase !== 'night') return;
 
     // 如果已经在显示任何界面，不触发
-    if (showHandoff || showWaiting || showRoleReveal || showActionUI || showNoActionUI || showWerewolfVoteResult || showDeathAnnouncement) return;
+    if (showHandoff || showWaiting || showRoleReveal || showActionUI || showNoActionUI || showDeathAnnouncement) return;
 
     const key = `night-${round}-${nightActionPhase}-${nightPlayerIndex}`;
     if (triggeredPhaseRef.current === key) return;
@@ -163,12 +162,12 @@ export const Game: React.FC = () => {
 
     nightActionTimeoutRef.current = timeoutId;
     return () => {};
-  }, [phase, round, nightActionPhase, nightPlayerIndex, showHandoff, showWaiting, showRoleReveal, showActionUI, showNoActionUI, showWerewolfVoteResult, showDeathAnnouncement, alivePlayers.length, currentPlayer, speak]);
+  }, [phase, round, nightActionPhase, nightPlayerIndex, showHandoff, showWaiting, showRoleReveal, showActionUI, showNoActionUI, showDeathAnnouncement, alivePlayers.length, currentPlayer, speak]);
 
-  // 处理传递确认 - 随机等待2-6秒
+  // 处理传递确认 - 随机等待1-4秒
   const handleHandoffConfirm = () => {
     setShowHandoff(false);
-    const randomTime = Math.floor(Math.random() * 5) + 2; // 2-6秒
+    const randomTime = Math.floor(Math.random() * 4) + 1; // 1-4秒
     setWaitingTime(randomTime);
     setWaitingElapsed(0);
     setShowWaiting(true);
@@ -319,13 +318,70 @@ export const Game: React.FC = () => {
   const handlePhaseComplete = () => {
     console.log('[Night] Phase complete:', nightActionPhase);
 
-    // 狼人阶段完成：显示投票结果
+    // 狼人阶段完成：直接处理投票结果，不显示确认界面
     if (nightActionPhase === 'werewolf' && Object.keys(werewolfVotes).length > 0) {
-      setShowWerewolfVoteResult(true);
+      processWerewolfVoteResult();
       return;
     }
 
     // 进入下一个行动阶段
+    goToNextActionPhase();
+  };
+
+  // 处理狼人投票结果（直接执行，不显示确认界面）
+  const processWerewolfVoteResult = () => {
+    const currentRound = useGameStore.getState().round;
+
+    // 统计投票结果
+    const voteCounts: Record<string, number> = {};
+    Object.values(werewolfVotes).forEach(targetId => {
+      voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
+    });
+
+    // 找出最高票
+    const maxVotes = Math.max(...Object.values(voteCounts), 0);
+    const topVoted = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
+
+    let finalTargetId: string;
+
+    if (topVoted.length === 1) {
+      finalTargetId = topVoted[0];
+    } else {
+      // 平票：随机选择一个
+      const randomIndex = Math.floor(Math.random() * topVoted.length);
+      finalTargetId = topVoted[randomIndex];
+      console.log('[Werewolf Vote] Tie detected, randomly selected:', finalTargetId);
+    }
+
+    const finalTarget = players.find(p => p.id === finalTargetId);
+    if (!finalTarget) {
+      setWerewolfVotes({});
+      goToNextActionPhase();
+      return;
+    }
+
+    // 记录狼人击杀目标（女巫阶段会用到）
+    setWerewolfKillTarget(finalTargetId);
+
+    // 执行击杀
+    const firstWerewolf = getPhasePlayers(players, 'werewolf')[0];
+    if (firstWerewolf) {
+      executeNightAction({
+        round: currentRound,
+        phase: 'werewolf',
+        actorId: firstWerewolf.id,
+        actorRole: firstWerewolf.role,
+        targetId: finalTargetId,
+        actionType: 'kill'
+      });
+    }
+
+    console.log('[Werewolf Vote] Final target:', finalTarget.name, 'with', maxVotes, 'votes');
+
+    // 重置投票状态
+    setWerewolfVotes({});
+    
+    // 进入女巫阶段
     goToNextActionPhase();
   };
 
@@ -364,63 +420,6 @@ export const Game: React.FC = () => {
     // 只有当玩家确认身份且是该阶段角色时，才在行动界面看到提示
     
     setNightActionPhase(nextPhase);
-  };
-
-  // 处理狼人投票结果确认
-  const handleWerewolfVoteResultConfirm = async () => {
-    const currentRound = useGameStore.getState().round;
-
-    // 统计投票结果
-    const voteCounts: Record<string, number> = {};
-    Object.values(werewolfVotes).forEach(targetId => {
-      voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
-    });
-
-    // 找出最高票
-    const maxVotes = Math.max(...Object.values(voteCounts), 0);
-    const topVoted = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-
-    let finalTargetId: string;
-
-    if (topVoted.length === 1) {
-      finalTargetId = topVoted[0];
-    } else {
-      // 平票：随机选择一个
-      const randomIndex = Math.floor(Math.random() * topVoted.length);
-      finalTargetId = topVoted[randomIndex];
-      console.log('[Werewolf Vote] Tie detected, randomly selected:', finalTargetId);
-    }
-
-    const finalTarget = players.find(p => p.id === finalTargetId);
-    if (!finalTarget) {
-      goToNextActionPhase();
-      return;
-    }
-
-    // 记录狼人击杀目标（女巫阶段会用到）
-    setWerewolfKillTarget(finalTargetId);
-
-    // 执行击杀
-    const firstWerewolf = getPhasePlayers(players, 'werewolf')[0];
-    if (firstWerewolf) {
-      executeNightAction({
-        round: currentRound,
-        phase: 'werewolf',
-        actorId: firstWerewolf.id,
-        actorRole: firstWerewolf.role,
-        targetId: finalTargetId,
-        actionType: 'kill'
-      });
-    }
-
-    console.log('[Werewolf Vote] Final target:', finalTarget.name, 'with', maxVotes, 'votes');
-
-    // 重置投票状态
-    setShowWerewolfVoteResult(false);
-    setWerewolfVotes({});
-    
-    // 进入女巫阶段
-    goToNextActionPhase();
   };
 
   // 结束夜晚阶段
@@ -491,71 +490,6 @@ export const Game: React.FC = () => {
           <RoleReveal player={currentPlayer} onComplete={handleRoleConfirm} antiPeekMode={settings.antiPeekMode} />
         )}
 
-        {/* 狼人投票结果展示 */}
-        {showWerewolfVoteResult && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto">
-            <Card variant="bordered" className="mb-6">
-              <div className="text-center mb-4">
-                <Target className="w-8 h-8 text-red-400 mx-auto mb-2" />
-                <div className="text-lg text-gray-100 mb-2">狼人投票结果</div>
-                <div className="text-sm text-gray-400 mb-4">所有狼人已投票完毕</div>
-              </div>
-
-              {/* 投票明细 */}
-              <div className="space-y-2 mb-4">
-                {Object.entries(werewolfVotes).map(([voterId, targetId]) => {
-                  const voter = players.find(p => p.id === voterId);
-                  const target = players.find(p => p.id === targetId);
-                  if (!voter || !target) return null;
-                  return (
-                    <div key={voterId} className="flex justify-between items-center p-2 bg-gray-800/50 rounded-lg text-sm">
-                      <span className="text-gray-300">{voter.name}</span>
-                      <span className="text-gray-100">→</span>
-                      <span className="text-red-400">{target.name}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* 统计结果 */}
-              <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50 mb-4">
-                <div className="text-sm text-red-400 mb-2">投票统计</div>
-                {(() => {
-                  const voteCounts: Record<string, number> = {};
-                  Object.values(werewolfVotes).forEach(targetId => {
-                    voteCounts[targetId] = (voteCounts[targetId] || 0) + 1;
-                  });
-                  const maxVotes = Math.max(...Object.values(voteCounts), 0);
-                  const topVoted = Object.keys(voteCounts).filter(id => voteCounts[id] === maxVotes);
-
-                  return (
-                    <div className="space-y-1">
-                      {Object.entries(voteCounts).map(([targetId, count]) => {
-                        const target = players.find(p => p.id === targetId);
-                        if (!target) return null;
-                        const isTop = voteCounts[targetId] === maxVotes;
-                        return (
-                          <div key={targetId} className={`flex justify-between text-sm ${isTop ? 'text-red-300 font-bold' : 'text-gray-400'}`}>
-                            <span>{target.name}</span>
-                            <span>{count} 票 {isTop && topVoted.length > 1 ? '(平票)' : isTop ? '(最高票)' : ''}</span>
-                          </div>
-                        );
-                      })}
-                      {topVoted.length > 1 && (
-                        <div className="text-xs text-yellow-400 mt-2">平票将随机选择一人击杀</div>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <Button variant="primary" onClick={handleWerewolfVoteResultConfirm} className="w-full">
-                确认击杀目标
-              </Button>
-            </Card>
-          </motion.div>
-        )}
-
         {/* 无行动提示界面 - 自动跳过 */}
         {showNoActionUI && currentPlayer && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto">
@@ -571,7 +505,7 @@ export const Game: React.FC = () => {
         )}
 
         {/* 行动界面 */}
-        {showActionUI && currentPlayer && !showWerewolfVoteResult && (
+        {showActionUI && currentPlayer && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto">
             <Card variant="bordered" className="mb-6">
               <div className="text-center mb-4">
@@ -744,7 +678,7 @@ export const Game: React.FC = () => {
         )}
 
         {/* 等待界面 - 使用通用提示，不暴露当前角色阶段 */}
-        {!showHandoff && !showWaiting && !showRoleReveal && !showActionUI && !showNoActionUI && !showWerewolfVoteResult && (
+        {!showHandoff && !showWaiting && !showRoleReveal && !showActionUI && !showNoActionUI && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md mx-auto">
             <Card variant="bordered" className="mb-6">
               <div className="text-center py-8">
