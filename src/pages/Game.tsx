@@ -165,10 +165,11 @@ export const Game: React.FC = () => {
     return () => {};
   }, [phase, round, nightActionPhase, nightPlayerIndex, showHandoff, showWaiting, showRoleReveal, showActionUI, showNoActionUI, showWerewolfVoteResult, showDeathAnnouncement, alivePlayers.length, currentPlayer, speak]);
 
-  // 处理传递确认 - 固定等待2秒
+  // 处理传递确认 - 随机等待2-6秒
   const handleHandoffConfirm = () => {
     setShowHandoff(false);
-    setWaitingTime(2);
+    const randomTime = Math.floor(Math.random() * 5) + 2; // 2-6秒
+    setWaitingTime(randomTime);
     setWaitingElapsed(0);
     setShowWaiting(true);
   };
