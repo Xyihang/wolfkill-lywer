@@ -15,7 +15,7 @@ import { SPEECH_MESSAGES } from '../data/messages';
 import { Player, NightPhase } from '../types';
 
 // 夜晚行动阶段顺序
-type NightActionPhase = 'werewolf' | 'witch' | 'seer';
+type NightActionPhase = 'werewolf' | 'witch' | 'seer' | 'silencer';
 
 export const Game: React.FC = () => {
   const navigate = useNavigate();
@@ -78,9 +78,10 @@ export const Game: React.FC = () => {
   // 获取当前行动阶段对应的角色
   const getPhaseRole = useCallback((phase: NightActionPhase): RoleType[] => {
     switch (phase) {
-      case 'werewolf': return ['werewolf', 'wolfKing'];
+      case 'werewolf': return ['werewolf', 'wolfKing', 'evilKnight'];
       case 'witch': return ['witch'];
       case 'seer': return ['seer'];
+      case 'silencer': return ['silencer'];
     }
   }, []);
 
@@ -142,6 +143,15 @@ export const Game: React.FC = () => {
 
     // 如果已经在显示任何界面，不触发
     if (showHandoff || showWaiting || showRoleReveal || showActionUI || showNoActionUI || showDeathAnnouncement) return;
+
+    // 检查当前行动阶段是否有对应的存活角色
+    const phasePlayers = getPhasePlayers(players, nightActionPhase);
+    if (phasePlayers.length === 0) {
+      // 当前阶段没有对应角色，直接跳过
+      console.log('[Night] No players for phase:', nightActionPhase, 'skipping (in useEffect)');
+      goToNextActionPhase();
+      return;
+    }
 
     const key = `night-${round}-${nightActionPhase}-${nightPlayerIndex}`;
     if (triggeredPhaseRef.current === key) return;
@@ -316,6 +326,25 @@ export const Game: React.FC = () => {
     handlePlayerComplete();
   };
 
+  // 处理禁言长老行动
+  const handleSilencerAction = async () => {
+    if (!currentPlayer || !selectedTarget) return;
+
+    // 执行禁言行动
+    executeNightAction({
+      round: round,
+      phase: 'silencer',
+      actorId: currentPlayer.id,
+      actorRole: 'silencer',
+      targetId: selectedTarget,
+      actionType: 'silence',
+      result: { success: true, message: '禁言成功' }
+    });
+
+    // 不播报角色相关语音，避免暴露当前阶段
+    handlePlayerComplete();
+  };
+
   // 处理当前行动阶段完成
   const handlePhaseComplete = () => {
     console.log('[Night] Phase complete:', nightActionPhase);
@@ -397,6 +426,7 @@ export const Game: React.FC = () => {
     const nextPhase: NightActionPhase | null = 
       nightActionPhase === 'werewolf' ? 'witch' :
       nightActionPhase === 'witch' ? 'seer' :
+      nightActionPhase === 'seer' ? 'silencer' :
       null;
 
     if (!nextPhase) {
@@ -518,12 +548,12 @@ export const Game: React.FC = () => {
               </div>
 
               {/* 狼人投票 */}
-              {(currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolfKing') && (
+              {(currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolfKing' || currentPlayer.role === 'evilKnight') && (
                 <>
                   {/* 队友显示区域 */}
                   {(() => {
                     const teammates = players.filter(p =>
-                      (p.role === 'werewolf' || p.role === 'wolfKing') &&
+                      (p.role === 'werewolf' || p.role === 'wolfKing' || p.role === 'evilKnight') &&
                       p.id !== currentPlayer.id &&
                       p.isAlive
                     );
@@ -636,11 +666,24 @@ export const Game: React.FC = () => {
                       {seerResult.isWerewolf ? '🐺' : '👥'}
                     </div>
                     <div className="text-lg mb-2">{seerResult.name}</div>
-                    <div className={`text-xl font-bold ${
-                      seerResult.isWerewolf ? 'text-red-400' : 'text-green-400'
-                    }`}>
-                      {seerResult.isWerewolf ? '狼人阵营' : '好人阵营'}
-                    </div>
+                    {/* 恶灵骑士特殊处理：不显示阵营信息 */}
+                    {seerResult.name && (() => {
+                      const targetPlayer = players.find(p => p.name === seerResult.name);
+                      if (targetPlayer && targetPlayer.role === 'evilKnight') {
+                        return (
+                          <div className="text-xl font-bold text-gray-400">
+                            无法获取信息
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className={`text-xl font-bold ${
+                          seerResult.isWerewolf ? 'text-red-400' : 'text-green-400'
+                        }`}>
+                          {seerResult.isWerewolf ? '狼人阵营' : '好人阵营'}
+                        </div>
+                      );
+                    })()}
                   </div>
                   <Button variant="primary" onClick={handleSeerConfirm} className="w-full mt-4">
                     我已记住，继续
@@ -740,6 +783,43 @@ export const Game: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* 禁言长老行动 */}
+              {currentPlayer.role === 'silencer' && (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-400 mb-3">禁言长老行动选择</div>
+                  
+                  {/* 选择禁言目标 */}
+                  <div className="text-sm text-gray-400 mb-2">选择一名玩家禁言</div>
+                  <PlayerList
+                    players={players.filter(p => p.isAlive)}
+                    onSelect={(p) => setSelectedTarget(p.id)}
+                    selectedId={selectedTarget}
+                    layout="grid"
+                  />
+                  
+                  {/* 不发动技能选项 */}
+                  <Button variant="ghost" onClick={() => { setSelectedTarget(null); handlePlayerComplete(); }} className="w-full">
+                    不发动技能
+                  </Button>
+                  
+                  {/* 禁言自己选项 */}
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => { setSelectedTarget(currentPlayer.id); handleSilencerAction(); }} 
+                    className="w-full"
+                  >
+                    禁言自己
+                  </Button>
+                  
+                  {/* 确认禁言 */}
+                  {selectedTarget && selectedTarget !== currentPlayer.id && (
+                    <Button variant="primary" onClick={handleSilencerAction} className="w-full">
+                      确认禁言
+                    </Button>
+                  )}
+                </div>
+              )}
             </Card>
           </motion.div>
         )}
@@ -798,6 +878,10 @@ const DayPhase: React.FC<{
   const navRef = useRef(navigate);
   useEffect(() => { speakRef.current = speak; }, [speak]);
   useEffect(() => { navRef.current = navigate; }, [navigate]);
+
+  // 获取上一晚被禁言的玩家
+  const lastSilencedPlayer = useGameStore(state => state.lastSilencedPlayer);
+  const silencedPlayerObj = players.find(p => p.id === lastSilencedPlayer);
 
   const alivePlayers = players.filter(p => p.isAlive);
   // 白痴翻牌后失去投票权
@@ -1022,6 +1106,17 @@ const DayPhase: React.FC<{
           </div>
         </div>
 
+        {/* 禁言玩家显示区域 - 常驻显示整个白天阶段 */}
+        {silencedPlayerObj && (
+          <div className="mb-6 p-3 bg-yellow-900/40 rounded-lg border border-yellow-500">
+            <div className="text-center">
+              <div className="text-sm text-yellow-400 mb-1">被禁言的玩家</div>
+              <div className="text-lg font-bold text-yellow-300">{silencedPlayerObj.name}</div>
+              <div className="text-xs text-gray-400 mt-1">该玩家今天无法发言</div>
+            </div>
+          </div>
+        )}
+
         {phase === 'announce' && (
           <Card variant="bordered" className="mb-6">
             <div className="text-center">
@@ -1044,10 +1139,26 @@ const DayPhase: React.FC<{
               <div className="text-sm text-gray-400 mb-2">发言环节</div>
               <div className="text-xl font-bold text-gray-100 mb-2">{alivePlayers[speakerIdx].name}</div>
               <div className="text-sm text-gray-400">座位号：{alivePlayers[speakerIdx].seatNumber}</div>
+              
+              {/* 检查当前发言玩家是否被禁言 */}
+              {alivePlayers[speakerIdx].id === lastSilencedPlayer && (
+                <div className="mt-4 p-3 bg-yellow-900/40 rounded-lg border border-yellow-500">
+                  <div className="text-sm text-yellow-400 mb-2">该玩家被禁言了，无法发言</div>
+                  <div className="text-xs text-gray-400">自动跳过...</div>
+                </div>
+              )}
             </div>
-            <Button variant="primary" onClick={nextSpeaker} className="w-full">
-              {speakerIdx < alivePlayers.length - 1 ? '下一位发言' : '开始投票'}
-            </Button>
+            
+            {/* 如果被禁言，自动跳过；否则显示按钮 */}
+            {alivePlayers[speakerIdx].id === lastSilencedPlayer ? (
+              <Button variant="ghost" onClick={nextSpeaker} className="w-full">
+                跳过发言
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={nextSpeaker} className="w-full">
+                {speakerIdx < alivePlayers.length - 1 ? '下一位发言' : '开始投票'}
+              </Button>
+            )}
           </Card>
         )}
 
