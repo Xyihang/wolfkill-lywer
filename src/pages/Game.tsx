@@ -520,6 +520,31 @@ export const Game: React.FC = () => {
               {/* 狼人投票 */}
               {(currentPlayer.role === 'werewolf' || currentPlayer.role === 'wolfKing') && (
                 <>
+                  {/* 队友显示区域 */}
+                  {(() => {
+                    const teammates = players.filter(p =>
+                      (p.role === 'werewolf' || p.role === 'wolfKing') &&
+                      p.id !== currentPlayer.id &&
+                      p.isAlive
+                    );
+                    return teammates.length > 0 ? (
+                      <div className="p-3 bg-gray-800/40 rounded-lg border border-gray-600 mb-4">
+                        <div className="text-sm text-gray-400 mb-2">你的队友</div>
+                        <div className="space-y-1">
+                          {teammates.map(teammate => (
+                            <div key={teammate.id} className="text-sm text-gray-300">
+                              {teammate.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-800/40 rounded-lg border border-gray-600 mb-4">
+                        <div className="text-sm text-gray-400">你是唯一的狼人</div>
+                      </div>
+                    );
+                  })()}
+
                   {/* 显示其他狼人的投票 */}
                   {Object.keys(werewolfVotes).length > 0 && (
                     <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50 mb-4">
@@ -760,6 +785,8 @@ const DayPhase: React.FC<{
   const [wolfKingTarget, setWolfKingTarget] = useState<string | null>(null);
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
   const [voteTieCount, setVoteTieCount] = useState(0);
+  const [showVoteResult, setShowVoteResult] = useState(false);
+  const [voteResultTimer, setVoteResultTimer] = useState(10);
 
   // 投票传递相关状态
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
@@ -785,6 +812,22 @@ const DayPhase: React.FC<{
       else setPhase('speech');
     }, 2000);
   }, [phase, players]);
+
+  // 投票结果公示倒计时
+  useEffect(() => {
+    if (!showVoteResult) return;
+    if (voteResultTimer <= 0) {
+      setShowVoteResult(false);
+      processElimination();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVoteResultTimer(prev => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [showVoteResult, voteResultTimer]);
 
   const nextSpeaker = () => setSpeakerIdx(prev => prev < alivePlayers.length - 1 ? prev + 1 : (setPhase('vote'), prev));
 
@@ -859,39 +902,8 @@ const DayPhase: React.FC<{
         }, 1500);
         
         setEliminatedPlayer(eliminated);
-        
-        // 检查白痴技能
-        if (eliminated.role === 'idiot' && !idiotRevealed) {
-          useGameStore.getState().idiotReveal();
-          speak(SPEECH_MESSAGES.IDIOT_REVEAL);
-          useGameStore.setState({ phase: 'night', round: round + 1 });
-          startNightPhase();
-          return;
-        }
-        
-        // 处理玩家出局
-        setTimeout(() => {
-          useGameStore.getState().submitVote(eliminatedId, eliminatedId);
-          useGameStore.getState().endVotePhase();
-          
-          // 检查猎人技能
-          if (eliminated.role === 'hunter' && useGameStore.getState().hunterCanShoot) {
-            setPhase('hunterShoot');
-            return;
-          }
-          
-          // 检查狼王技能
-          if (eliminated.role === 'wolfKing') {
-            setPhase('wolfKingShoot');
-            return;
-          }
-          
-          if (useGameStore.getState().checkGameEnd()) navigate('/result');
-          else {
-            useGameStore.setState({ phase: 'night', round: round + 1 });
-            startNightPhase();
-          }
-        }, 2500);
+        setShowVoteResult(true);
+        setVoteResultTimer(10);
         return;
       }
       
@@ -914,9 +926,16 @@ const DayPhase: React.FC<{
     setVoteTieCount(0);
 
     setEliminatedPlayer(eliminated);
+    setShowVoteResult(true);
+    setVoteResultTimer(10);
+  };
+
+  // 处理玩家出局逻辑
+  const processElimination = () => {
+    if (!eliminatedPlayer) return;
 
     // 检查白痴技能
-    if (eliminated.role === 'idiot' && !idiotRevealed) {
+    if (eliminatedPlayer.role === 'idiot' && !idiotRevealed) {
       useGameStore.getState().idiotReveal();
       speak(SPEECH_MESSAGES.IDIOT_REVEAL);
       useGameStore.setState({ phase: 'night', round: round + 1 });
@@ -925,18 +944,18 @@ const DayPhase: React.FC<{
     }
 
     // 处理玩家出局
-    speak(SPEECH_MESSAGES.VOTE_RESULT(eliminated.name));
-    useGameStore.getState().submitVote(eliminatedId, eliminatedId);
+    speak(SPEECH_MESSAGES.VOTE_RESULT(eliminatedPlayer.name));
+    useGameStore.getState().submitVote(eliminatedPlayer.id, eliminatedPlayer.id);
     useGameStore.getState().endVotePhase();
 
     // 检查猎人技能
-    if (eliminated.role === 'hunter' && useGameStore.getState().hunterCanShoot) {
+    if (eliminatedPlayer.role === 'hunter' && useGameStore.getState().hunterCanShoot) {
       setPhase('hunterShoot');
       return;
     }
 
     // 检查狼王技能
-    if (eliminated.role === 'wolfKing') {
+    if (eliminatedPlayer.role === 'wolfKing') {
       setPhase('wolfKingShoot');
       return;
     }
@@ -1096,6 +1115,43 @@ const DayPhase: React.FC<{
             </div>
             <Button variant="primary" onClick={finishVote} className="w-full">公布处决结果</Button>
           </Card>
+        )}
+
+        {/* 投票结果公示界面 */}
+        {showVoteResult && eliminatedPlayer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50"
+          >
+            <div className="max-w-sm w-full mx-4">
+              <div className="p-6 bg-red-900/40 border border-red-500 rounded-lg">
+                <div className="text-center mb-4">
+                  <Skull className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                  <div className="text-xl font-bold text-gray-100 mb-2">投票结果公示</div>
+                </div>
+                
+                <div className="text-center mb-4">
+                  <div className="text-sm text-gray-300 mb-2">被票出的玩家</div>
+                  <div className="text-2xl font-bold text-red-400 mb-3">{eliminatedPlayer.name}</div>
+                  
+                  <div className="text-sm text-gray-400 mb-1">票数统计</div>
+                  <div className="text-lg text-gray-200">
+                    {(() => {
+                      const counts: Record<string, number> = {};
+                      Object.values(votes).forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+                      const eliminatedVotes = counts[eliminatedPlayer.id] || 0;
+                      return `${eliminatedVotes} 票`;
+                    })()}
+                  </div>
+                </div>
+                
+                <div className="text-center text-sm text-gray-400">
+                  {voteResultTimer} 秒后进入夜晚...
+                </div>
+              </div>
+            </div>
+          </motion.div>
         )}
 
         {phase === 'hunterShoot' && eliminatedPlayer && (
