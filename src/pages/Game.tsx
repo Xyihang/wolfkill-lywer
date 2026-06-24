@@ -620,7 +620,7 @@ export const Game: React.FC = () => {
               {currentPlayer.role === 'witch' && (
                 <div className="space-y-4">
                   <div className="text-sm text-gray-400 mb-3">女巫行动选择</div>
-                  
+
                   {/* 显示狼人击杀目标 */}
                   {werewolfKillTarget && (() => {
                     const killedTarget = players.find(p => p.id === werewolfKillTarget);
@@ -633,21 +633,30 @@ export const Game: React.FC = () => {
                     );
                   })()}
 
-                  {witchHasAntidote && (
+                  {/* 解药：只能救狼人杀的目标 */}
+                  {witchHasAntidote && werewolfKillTarget && (
                     <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/50 mb-4">
                       <div className="flex items-center gap-2 mb-2">
                         <FlaskConical className="w-4 h-4 text-green-400" />
-                        <div className="text-sm text-green-400">使用解药</div>
+                        <div className="text-sm text-green-400">使用解药救人</div>
                       </div>
-                      <div className="text-xs text-gray-400 mb-2">选择一名玩家使用解药（可自救）</div>
-                      <PlayerList
-                        players={players.filter(p => p.isAlive)}
-                        onSelect={(p) => { setWitchChoice('antidote'); setSelectedTarget(p.id); }}
-                        selectedId={witchChoice === 'antidote' ? selectedTarget : undefined}
-                        layout="grid"
-                      />
+                      <div className="text-xs text-gray-400 mb-3">
+                        解药只能救今晚被狼人击杀的玩家
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={witchChoice === 'antidote' ? 'primary' : 'ghost'}
+                          size="sm"
+                          onClick={() => { setWitchChoice('antidote'); setSelectedTarget(werewolfKillTarget); }}
+                          className="flex-1"
+                        >
+                          救 {players.find(p => p.id === werewolfKillTarget)?.name}
+                        </Button>
+                      </div>
                     </div>
                   )}
+
+                  {/* 毒药：可以毒任意玩家 */}
                   {witchHasPoison && (
                     <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50">
                       <div className="flex items-center gap-2 mb-2">
