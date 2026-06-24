@@ -698,7 +698,7 @@ function handleWerewolfVote(socket, data) {
   const onlineAliveWolves = aliveWolves.filter(w => room.players.find(rp => rp.id === w.id)?.isOnline);
   const onlineVotedWolves = onlineAliveWolves.filter(w => votedWolves.includes(w.id));
   
-  if (onlineVotedWaves.length === onlineAliveWolves.length) {
+  if (onlineVotedWolves.length === onlineAliveWolves.length) {
     // 所有在线狼人都投完了，处理结果
     resolveWerewolfVote(room);
   }
