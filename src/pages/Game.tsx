@@ -65,6 +65,7 @@ export const Game: React.FC = () => {
   const idiotRevealed = useGameStore(state => state.idiotRevealed);
   const witchHasAntidote = useGameStore(state => state.witchHasAntidote);
   const witchHasPoison = useGameStore(state => state.witchHasPoison);
+  const witchUsedTonight = useGameStore(state => state.witchUsedTonight);
   const executeNightAction = useGameStore(state => state.executeNightAction);
   const useWitchAntidote = useGameStore(state => state.useWitchAntidote);
   const useWitchPoison = useGameStore(state => state.useWitchPoison);
@@ -596,19 +597,24 @@ export const Game: React.FC = () => {
               {/* 预言家查验结果 */}
               {currentPlayer.role === 'seer' && seerResult && (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 rounded-lg border"
-                  style={{
-                    backgroundColor: seerResult.isWerewolf ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)',
-                    borderColor: seerResult.isWerewolf ? 'rgba(239,68,68,0.5)' : 'rgba(59,130,246,0.5)'
-                  }}
+                  initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className={`p-4 rounded-lg border ${
+                    seerResult.isWerewolf
+                      ? 'bg-red-900/40 border-red-500'
+                      : 'bg-green-900/40 border-green-500'
+                  }`}
                 >
                   <div className="text-center">
-                    <Eye className={`w-8 h-8 mb-2 mx-auto ${seerResult.isWerewolf ? 'text-red-400' : 'text-blue-400'}`} />
+                    <div className={`text-4xl mb-2`}>
+                      {seerResult.isWerewolf ? '🐺' : '👥'}
+                    </div>
                     <div className="text-lg mb-2">{seerResult.name}</div>
-                    <div className={`text-xl font-bold ${seerResult.isWerewolf ? 'text-red-400' : 'text-blue-400'}`}>
-                      {seerResult.isWerewolf ? '狼人' : '好人'}
+                    <div className={`text-xl font-bold ${
+                      seerResult.isWerewolf ? 'text-red-400' : 'text-green-400'
+                    }`}>
+                      {seerResult.isWerewolf ? '狼人阵营' : '好人阵营'}
                     </div>
                   </div>
                   <Button variant="primary" onClick={handleSeerConfirm} className="w-full mt-4">
@@ -620,66 +626,92 @@ export const Game: React.FC = () => {
               {/* 女巫行动 */}
               {currentPlayer.role === 'witch' && (
                 <div className="space-y-4">
-                  <div className="text-sm text-gray-400 mb-3">女巫行动选择</div>
+                  {/* 如果今晚已经用过药，显示已完成提示 */}
+                  {witchUsedTonight ? (
+                    <div className="text-center py-8">
+                      <FlaskConical className="w-12 h-12 text-gray-400 mb-4 mx-auto" />
+                      <div className="text-lg text-gray-100 mb-2">今晚已使用药水</div>
+                      <div className="text-sm text-gray-400 mb-4">女巫一晚只能使用一瓶药</div>
+                      <Button variant="ghost" onClick={() => { setWitchChoice('none'); handleWitchAction(); }} className="w-full">
+                        完成行动
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-sm text-gray-400 mb-3">女巫行动选择</div>
 
-                  {/* 显示狼人击杀目标 */}
-                  {werewolfKillTarget && (() => {
-                    const killedTarget = players.find(p => p.id === werewolfKillTarget);
-                    if (!killedTarget) return null;
-                    return (
-                      <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50 mb-4">
-                        <div className="text-sm text-red-400 mb-2">今晚狼人击杀目标</div>
-                        <div className="text-lg font-bold text-red-400">{killedTarget.name}</div>
-                      </div>
-                    );
-                  })()}
+                      {/* 显示狼人击杀目标 */}
+                      {werewolfKillTarget && (() => {
+                        const killedTarget = players.find(p => p.id === werewolfKillTarget);
+                        if (!killedTarget) return null;
+                        return (
+                          <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50 mb-4">
+                            <div className="text-sm text-red-400 mb-2">今晚狼人击杀目标</div>
+                            <div className="text-lg font-bold text-red-400">{killedTarget.name}</div>
+                          </div>
+                        );
+                      })()}
 
-                  {/* 解药：只能救狼人杀的目标 */}
-                  {witchHasAntidote && werewolfKillTarget && (
-                    <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/50 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FlaskConical className="w-4 h-4 text-green-400" />
-                        <div className="text-sm text-green-400">使用解药救人</div>
-                      </div>
-                      <div className="text-xs text-gray-400 mb-3">
-                        解药只能救今晚被狼人击杀的玩家
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={witchChoice === 'antidote' ? 'primary' : 'ghost'}
-                          size="sm"
-                          onClick={() => { setWitchChoice('antidote'); setSelectedTarget(werewolfKillTarget); }}
-                          className="flex-1"
-                        >
-                          救 {players.find(p => p.id === werewolfKillTarget)?.name}
+                      {/* 解药：只能救狼人杀的目标 */}
+                      {witchHasAntidote && werewolfKillTarget && (
+                        <div className="p-3 bg-green-900/20 rounded-lg border border-green-700/50 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FlaskConical className="w-4 h-4 text-green-400" />
+                            <div className="text-sm text-green-400">使用解药救人</div>
+                          </div>
+                          <div className="text-xs text-gray-400 mb-3">
+                            解药只能救今晚被狼人击杀的玩家
+                          </div>
+                          <div className="flex gap-2">
+                            {/* 自救按钮：狼人击杀目标是女巫本人 */}
+                            {werewolfKillTarget === currentPlayer.id ? (
+                              <Button
+                                variant={witchChoice === 'antidote' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => { setWitchChoice('antidote'); setSelectedTarget(currentPlayer.id); }}
+                                className="flex-1"
+                              >
+                                自救（使用解药救自己）
+                              </Button>
+                            ) : (
+                              <Button
+                                variant={witchChoice === 'antidote' ? 'primary' : 'ghost'}
+                                size="sm"
+                                onClick={() => { setWitchChoice('antidote'); setSelectedTarget(werewolfKillTarget); }}
+                                className="flex-1"
+                              >
+                                救 {players.find(p => p.id === werewolfKillTarget)?.name}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 毒药：可以毒任意玩家 */}
+                      {witchHasPoison && (
+                        <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FlaskConical className="w-4 h-4 text-red-400" />
+                            <div className="text-sm text-red-400">使用毒药</div>
+                          </div>
+                          <div className="text-xs text-gray-400 mb-2">选择一名玩家使用毒药</div>
+                          <PlayerList
+                            players={players.filter(p => p.isAlive && p.id !== currentPlayer.id)}
+                            onSelect={(p) => { setWitchChoice('poison'); setSelectedTarget(p.id); }}
+                            selectedId={witchChoice === 'poison' ? selectedTarget : undefined}
+                            layout="grid"
+                          />
+                        </div>
+                      )}
+                      <Button variant="ghost" onClick={() => { setWitchChoice('none'); handleWitchAction(); }} className="w-full">
+                        不使用技能
+                      </Button>
+                      {witchChoice && witchChoice !== 'none' && selectedTarget && (
+                        <Button variant="primary" onClick={handleWitchAction} className="w-full">
+                          确认行动
                         </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 毒药：可以毒任意玩家 */}
-                  {witchHasPoison && (
-                    <div className="p-3 bg-red-900/20 rounded-lg border border-red-700/50">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FlaskConical className="w-4 h-4 text-red-400" />
-                        <div className="text-sm text-red-400">使用毒药</div>
-                      </div>
-                      <div className="text-xs text-gray-400 mb-2">选择一名玩家使用毒药</div>
-                      <PlayerList
-                        players={players.filter(p => p.isAlive && p.id !== currentPlayer.id)}
-                        onSelect={(p) => { setWitchChoice('poison'); setSelectedTarget(p.id); }}
-                        selectedId={witchChoice === 'poison' ? selectedTarget : undefined}
-                        layout="grid"
-                      />
-                    </div>
-                  )}
-                  <Button variant="ghost" onClick={() => { setWitchChoice('none'); handleWitchAction(); }} className="w-full">
-                    不使用技能
-                  </Button>
-                  {witchChoice && witchChoice !== 'none' && selectedTarget && (
-                    <Button variant="primary" onClick={handleWitchAction} className="w-full">
-                      确认行动
-                    </Button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -727,6 +759,7 @@ const DayPhase: React.FC<{
   const [hunterTarget, setHunterTarget] = useState<string | null>(null);
   const [wolfKingTarget, setWolfKingTarget] = useState<string | null>(null);
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
+  const [voteTieCount, setVoteTieCount] = useState(0);
 
   // 投票传递相关状态
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
@@ -810,6 +843,59 @@ const DayPhase: React.FC<{
 
     // 平票处理
     if (topVoted.length > 1) {
+      const newTieCount = voteTieCount + 1;
+      setVoteTieCount(newTieCount);
+      
+      // 如果达到2轮平票，随机淘汰一名平票玩家
+      if (newTieCount >= 2) {
+        const randomIndex = Math.floor(Math.random() * topVoted.length);
+        const eliminatedId = topVoted[randomIndex];
+        const eliminated = players.find(p => p.id === eliminatedId);
+        if (!eliminated) return;
+        
+        speak(SPEECH_MESSAGES.VOTE_TIE);
+        setTimeout(() => {
+          speak(`经过两轮平票，随机处决${eliminated.name}`);
+        }, 1500);
+        
+        setEliminatedPlayer(eliminated);
+        
+        // 检查白痴技能
+        if (eliminated.role === 'idiot' && !idiotRevealed) {
+          useGameStore.getState().idiotReveal();
+          speak(SPEECH_MESSAGES.IDIOT_REVEAL);
+          useGameStore.setState({ phase: 'night', round: round + 1 });
+          startNightPhase();
+          return;
+        }
+        
+        // 处理玩家出局
+        setTimeout(() => {
+          useGameStore.getState().submitVote(eliminatedId, eliminatedId);
+          useGameStore.getState().endVotePhase();
+          
+          // 检查猎人技能
+          if (eliminated.role === 'hunter' && useGameStore.getState().hunterCanShoot) {
+            setPhase('hunterShoot');
+            return;
+          }
+          
+          // 检查狼王技能
+          if (eliminated.role === 'wolfKing') {
+            setPhase('wolfKingShoot');
+            return;
+          }
+          
+          if (useGameStore.getState().checkGameEnd()) navigate('/result');
+          else {
+            useGameStore.setState({ phase: 'night', round: round + 1 });
+            startNightPhase();
+          }
+        }, 2500);
+        return;
+      }
+      
+      // 未达到2轮，重新投票
       speak(SPEECH_MESSAGES.VOTE_TIE);
       setVotes({});
       setCurrentVoterIndex(0);
@@ -823,6 +909,9 @@ const DayPhase: React.FC<{
     const eliminatedId = topVoted[0];
     const eliminated = players.find(p => p.id === eliminatedId);
     if (!eliminated) return;
+    
+    // 投票成功，重置平票计数
+    setVoteTieCount(0);
 
     setEliminatedPlayer(eliminated);
 

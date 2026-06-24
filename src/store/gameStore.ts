@@ -100,11 +100,14 @@ const initialState: GameState = {
   winner: null,
   gameLog: [],
   deadTonight: [],
+  deathReasons: {},
   witchHasAntidote: true,
   witchHasPoison: true,
+  witchUsedTonight: false,
   hunterCanShoot: true,
   pendingHunterShoot: false,
   hunterTarget: null,
+  wolfKingCanShoot: true,
   pendingWolfKingShoot: false,
   wolfKingTarget: null,
   idiotRevealed: false
@@ -141,6 +144,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       hunterCanShoot: true,
       pendingHunterShoot: false,
       hunterTarget: null,
+      wolfKingCanShoot: true,
       pendingWolfKingShoot: false,
       wolfKingTarget: null,
       idiotRevealed: false
@@ -185,11 +189,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       currentVotes: {},
       currentSpeakerIndex: 0,
       deadTonight: [],
+      deathReasons: {},
       witchHasAntidote: true,
       witchHasPoison: true,
+      witchUsedTonight: false,
       hunterCanShoot: true,
       pendingHunterShoot: false,
       hunterTarget: null,
+      wolfKingCanShoot: true,
       pendingWolfKingShoot: false,
       wolfKingTarget: null,
       idiotRevealed: false
@@ -219,7 +226,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       phase: 'night',
       nightPhase: 'werewolf',
       currentNightActions: [],
-      deadTonight: []
+      deadTonight: [],
+      deathReasons: {}
     });
   },
 
@@ -233,12 +241,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // 获取最新的 deadTonight 状态（避免异步 set 导致的状态覆盖）
     const currentDeadTonight = get().deadTonight;
+    const currentDeathReasons = get().deathReasons;
 
     // 处理狼人杀人
     if (action.actionType === 'kill' && action.targetId) {
       set({
         currentNightActions: newActions,
-        deadTonight: [...currentDeadTonight, action.targetId]
+        deadTonight: [...currentDeadTonight, action.targetId],
+        deathReasons: { ...currentDeathReasons, [action.targetId]: 'kill' }
       });
       return;
     }
@@ -246,10 +256,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     // 处理女巫救人
     if (action.actionType === 'save' && action.targetId) {
       const newDeadTonight = currentDeadTonight.filter(id => id !== action.targetId);
+      const newDeathReasons = { ...currentDeathReasons };
+      delete newDeathReasons[action.targetId];
       set({
         currentNightActions: newActions,
         deadTonight: newDeadTonight,
-        witchHasAntidote: false
+        deathReasons: newDeathReasons,
+        witchHasAntidote: false,
+        witchUsedTonight: true
       });
       return;
     }
@@ -259,7 +273,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
       set({
         currentNightActions: newActions,
         deadTonight: [...currentDeadTonight, action.targetId],
-        witchHasPoison: false
+        deathReasons: { ...currentDeathReasons, [action.targetId]: 'poison' },
+        witchHasPoison: false,
+        witchUsedTonight: true
       });
       return;
     }
@@ -305,7 +321,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       phase: 'day',
       nightPhase: null,
       currentNightActions: [],
-      deadTonight: []
+      deadTonight: [],
+      witchUsedTonight: false
     });
 
     // 检查游戏结束
@@ -314,11 +331,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
 
     // 检查夜晚死亡的猎人是否可以开枪
+    // 只有被狼人杀死的猎人才能开枪，被毒死的猎人不能开枪
     const deadHunter = deadPlayers.find(id => {
       const p = state.players.find(player => player.id === id);
-      return p && p.role === 'hunter' && state.hunterCanShoot;
+      const deathReason = state.deathReasons[id];
+      return p && p.role === 'hunter' && state.hunterCanShoot && deathReason === 'kill';
     });
-    
+
     if (deadHunter) {
       // 猎人夜晚死亡，设置等待开枪状态
       set({ pendingHunterShoot: true, hunterTarget: null });
@@ -468,7 +487,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     
     // 检查狼王技能（白天投票出局）
-    if (eliminatedPlayer.role === 'wolfKing') {
+    if (eliminatedPlayer.role === 'wolfKing' && state.wolfKingCanShoot) {
       set({ pendingWolfKingShoot: true, wolfKingTarget: null });
       autoSave(get());
       return; // 等待 UI 触发狼王开枪
@@ -617,18 +636,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   wolfKingShoot: (targetId) => {
     const state = get();
-    
+    if (!state.wolfKingCanShoot) return;
+
     const target = state.players.find(p => p.id === targetId);
     if (!target) return;
-    
-    const newPlayers = state.players.map(p => 
+
+    const newPlayers = state.players.map(p =>
       p.id === targetId ? { ...p, isAlive: false } : p
     );
-    
+
     set({
-      players: newPlayers
+      players: newPlayers,
+      wolfKingCanShoot: false
     });
-    
+
     get().addLog({
       id: generateId(),
       round: state.round,
@@ -638,7 +659,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       description: `狼王开枪带走了${target.name}(${ROLES[target.role].name})`,
       players: [targetId]
     });
-    
+
     // 检查游戏结束
     get().checkGameEnd();
   },

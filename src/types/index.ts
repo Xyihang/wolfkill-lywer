@@ -104,10 +104,14 @@ export interface GameState {
   
   // 死亡玩家
   deadTonight: string[];
-  
+
+  // 死亡原因记录
+  deathReasons: Record<string, 'kill' | 'poison'>;
+
   // 女巫状态
   witchHasAntidote: boolean;
   witchHasPoison: boolean;
+  witchUsedTonight: boolean;
   
   // 猎人状态
   hunterCanShoot: boolean;
@@ -115,6 +119,7 @@ export interface GameState {
   hunterTarget: string | null;
 
   // 狼王状态
+  wolfKingCanShoot: boolean;
   pendingWolfKingShoot: boolean;
   wolfKingTarget: string | null;
 
