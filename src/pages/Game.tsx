@@ -174,8 +174,8 @@ export const Game: React.FC = () => {
       // 是当前行动阶段的角色，直接显示角色确认（无等待）
       setShowRoleReveal(true);
     } else {
-      // 不是当前行动阶段的角色，随机等待1-4秒（防时间推断）
-      const randomTime = Math.floor(Math.random() * 4) + 1;
+      // 不是当前行动阶段的角色，随机等待0-2秒（防时间推断）
+      const randomTime = Math.floor(Math.random() * 3);
       setWaitingTime(randomTime);
       setWaitingElapsed(0);
       setShowWaiting(true);
