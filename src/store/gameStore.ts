@@ -230,26 +230,42 @@ export const useGameStore = create<GameStore>((set, get) => ({
   executeNightAction: (action) => {
     const state = get();
     const newActions = [...state.currentNightActions, action];
-    set({ currentNightActions: newActions });
-    
+
+    // 获取最新的 deadTonight 状态（避免异步 set 导致的状态覆盖）
+    const currentDeadTonight = get().deadTonight;
+
     // 处理狼人杀人
     if (action.actionType === 'kill' && action.targetId) {
-      set({ deadTonight: [...state.deadTonight, action.targetId] });
+      set({
+        currentNightActions: newActions,
+        deadTonight: [...currentDeadTonight, action.targetId]
+      });
+      return;
     }
-    
+
     // 处理女巫救人
     if (action.actionType === 'save' && action.targetId) {
-      const newDeadTonight = state.deadTonight.filter(id => id !== action.targetId);
-      set({ deadTonight: newDeadTonight, witchHasAntidote: false });
+      const newDeadTonight = currentDeadTonight.filter(id => id !== action.targetId);
+      set({
+        currentNightActions: newActions,
+        deadTonight: newDeadTonight,
+        witchHasAntidote: false
+      });
+      return;
     }
-    
+
     // 处理女巫毒人
     if (action.actionType === 'poison' && action.targetId) {
-      set({ 
-        deadTonight: [...state.deadTonight, action.targetId],
-        witchHasPoison: false 
+      set({
+        currentNightActions: newActions,
+        deadTonight: [...currentDeadTonight, action.targetId],
+        witchHasPoison: false
       });
+      return;
     }
+
+    // 其他行动（如预言家查验）
+    set({ currentNightActions: newActions });
   },
   
   endNightPhase: () => {
